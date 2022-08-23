@@ -151,7 +151,7 @@ impl FileFormat for CsvFormat {
 
 #[cfg(test)]
 mod tests {
-    use arrow::array::StringArray;
+    use arrow::array::{StringArray, UInt64Array};
 
     use super::super::test_util::scan_format;
     use super::*;
@@ -223,7 +223,7 @@ mod tests {
                 "c7: Int64",
                 "c8: Int64",
                 "c9: Int64",
-                "c10: Int64",
+                "c10: UInt64",
                 "c11: Float64",
                 "c12: Float64",
                 "c13: Utf8"
@@ -258,6 +258,45 @@ mod tests {
         }
 
         assert_eq!(vec!["c", "d", "b", "a", "b"], values);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn read_int_column() -> Result<()> {
+        let session_ctx = SessionContext::new();
+        let task_ctx = session_ctx.task_ctx();
+        let projection = Some(vec![9]);
+        let exec = get_exec("aggregate_test_100.csv", projection, None).await?;
+
+        let batches = collect(exec, task_ctx).await.expect("Collect batches");
+
+        assert_eq!(1, batches.len());
+        assert_eq!(1, batches[0].num_columns());
+        assert_eq!(100, batches[0].num_rows());
+
+        let array = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<UInt64Array>()
+            .unwrap();
+
+        let mut values: Vec<u64> = vec![];
+
+        for i in 0..5 {
+            values.push(array.value(i));
+        }
+
+        assert_eq!(
+            vec![
+                5863949479783605708,
+                11720144131976083864,
+                14857091259186476033,
+                12101411955859039553,
+                3330177516592499461
+            ],
+            values
+        );
 
         Ok(())
     }
